@@ -195,23 +195,30 @@ sont inclus dans la RAM et le CPU de solid-jobs-node. `xN` = N sidecars, `pf` = 
 - Les modèles diffèrent : BullMQ utilise N processus, solid-jobs-node N `worker_threads` + sidecars. BullMQ en `worker_threads` n'a pas été comparé.
 - Les latences file → démarrage d'une file préremplie ne sont pas représentatives ; voir ci-dessous.
 
-**Tableau 2 : après correction du prefetch** (réservation anticipée écrite avant le job). Médianes de 3 répétitions de
-20 000 jobs (sauf cpu c=4 : 5 répétitions), session distincte du tableau 1 (BullMQ varie d'une session à l'autre : comparer BullMQ et solid dans le même tableau, pas d'un tableau à l'autre) :
+**Tableau 2 : campagne complète après correction du prefetch** (réservation anticipée écrite avant le job). 5 passes
+alternées (BullMQ, x4+pf, x8+pf dans chaque passe), 20 000 jobs par exécution, 0 erreur sur les 90 exécutions, session distincte du tableau 1
+(BullMQ varie d'une session à l'autre : ne comparer que dans un même tableau). Débit en médiane (min–max), ratio = médiane des ratios
+appariés à BullMQ de la même passe, RAM = pic de l'arbre de processus :
 
-| Charge | c | BullMQ (jobs/s) | solid-jobs-node x4+pf | x8+pf |
-|---|---:|---:|---:|---:|
-| cpu | 4 (5 rép. alternées, voir ci-dessous) | 12 145 | **12 126 (1,00×)** | 11 919 (0,99×) |
-| cpu | 8 | 15 537 | 13 045 (0,84×) | 13 283 (0,85×) |
-| cpu | 12 | 16 586 | 12 637 (0,76×, avant correction) | 14 097 (0,85×, avant correction) |
-| noop | 4 | 15 312 (tableau 1) | 15 045 (0,98×) | 15 308 (1,00×) |
-| noop | 8 | 18 352 (tableau 1) | 17 347 (0,95×) | 19 308 (1,05×) |
+| Charge | c | BullMQ | solid x4+pf | ratio | RAM | solid x8+pf | ratio | RAM |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| noop | 4 | 15 408 (14 850–16 035) | 14 715 (14 380–15 056) | 0,94× | 257 vs 546 MiB | 14 919 (14 549–15 326) | 0,96× | 366 MiB |
+| noop | 8 | 18 335 (16 375–18 501) | 17 071 (16 240–17 457) | 0,93× | 330 vs 887 MiB | 18 872 (17 753–19 812) | **1,04×** | 445 MiB |
+| noop | 12 | 18 911 (18 281–20 094) | 15 706 (14 579–16 309) | 0,81× | 400 vs 1 277 MiB | 19 622 (17 628–19 905) | 1,00× | 509 MiB |
+| cpu | 4 | 11 960 (11 283–12 123) | 11 630 (11 576–12 117) | 0,99× | 260 vs 503 MiB | 11 887 (11 482–12 153) | 1,00× | 371 MiB |
+| cpu | 8 | 15 559 (14 455–15 826) | 13 163 (12 319–13 393) | 0,84× | 340 vs 877 MiB | 14 393 (13 747–14 901) | 0,94× | 455 MiB |
+| cpu | 12 | 16 593 (13 370–16 929) | 12 143 (11 632–12 893) | 0,77× | 414 vs 1 270 MiB | 13 616 (12 427–13 847) | 0,82× | 530 MiB |
 
-La ligne cpu c=4 vient d'une campagne dédiée de 5 répétitions alternées avec BullMQ (20 000 jobs, 0 erreur) :
-BullMQ 12 145 jobs/s (11 649–12 188, 502 MiB) ; x4+pf 12 126 (11 810–12 238, 259 MiB), ratio apparié médian 1,004
-(0,97× à 1,02× selon la paire), soit −48 % de RAM ; x8+pf 11 919 (11 024–12 174), ratio apparié médian 0,989, plus dispersé.
-C'est une parité mesurée sur une machine et un benchmark, pas une supériorité. À c=8 le correctif n'apporte pas de gain
-visible ; la limite restante n'est pas identifiée. Cycle mesuré fin du job N → début du job N+1 (cpu c=4, prefetch) :
-~90 µs avant (25 % de successeurs déjà réservés), ~25 µs après (100 %).
+À retenir de cette campagne (une machine, un benchmark) :
+
+- **Parité** à c=4 sur jobs CPU (0,99× à 1,00×) et pour x8+pf à noop c=12 (1,00×) ; **légèrement devant** en noop c=8 avec x8+pf
+  (1,04×, mais plage 17 753–19 812 qui recoupe BullMQ).
+- **Derrière** sur jobs CPU à c=8 (0,84× avec 4 sidecars, 0,94× avec 8) et c=12 (0,77–0,82×), et en noop à c=4 (0,94–0,96×).
+- Avec peu de sidecars, la concurrence élevée est limitée : x4+pf recule à c=12 (0,77–0,81×) ; viser un sidecar par worker, jusqu'à 8.
+- **RAM** : moins que BullMQ dans toutes les configurations : −48 % à −69 % avec x4, −26 % à −60 % avec x8 (selon charge et concurrence).
+- Le correctif du prefetch a surtout joué sur les jobs CPU à c=4 (0,84× avant, ~1,00× maintenant) ; à c=8 le gain est plus modeste et la
+  limite restante n'est pas identifiée. Cycle mesuré fin du job N → début du job N+1 (cpu c=4, prefetch) : ~90 µs avant
+  (25 % de successeurs déjà réservés), ~25 µs après (100 %).
 
 **Latence file → démarrage** (arrivées à cadence fixe, 8 workers, jobs CPU de ~0,5 ms, une exécution par point, 20 % de
 lignes de démarrage exclues). Le sondage adaptatif a fait passer p50 de ~125 ms (sommeil fixe de 250 ms) à quelques ms :
