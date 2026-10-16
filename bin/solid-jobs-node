@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+'use strict';
+
+require('../lib/console').main().then(
+  (code) => process.exit(code),
+  (error) => {
+    process.stderr.write(`solid-jobs-node: ${error && error.message ? error.message : error}\n`);
+    process.exit(1);
+  },
+);

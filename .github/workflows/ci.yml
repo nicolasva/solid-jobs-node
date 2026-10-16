@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }}, Node ${{ matrix.node }}, Ruby ${{ matrix.ruby }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ["22", "24"]
+        ruby: ["3.3", "3.4"]
+    env:
+      REDIS_URL: redis://127.0.0.1:6390/15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+
+      - name: Install Redis (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y redis-server
+
+      - name: Install Redis (macOS)
+        if: runner.os == 'macOS'
+        run: brew install redis
+
+      - name: Start Redis
+        run: |
+          redis-server --port 6390 --save "" --appendonly no --daemonize yes
+          for _ in $(seq 1 30); do redis-cli -p 6390 ping && break; sleep 0.5; done
+
+      - name: Run tests
+        run: bundle exec npm test
+
+  package:
+    name: Pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Pack
+        run: npm pack --dry-run 2>&1 | tee pack.log
+
+      - name: Package embeds the Ruby gateway
+        run: grep solid_redis_gateway.rb pack.log

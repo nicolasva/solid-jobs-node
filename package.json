@@ -1,0 +1,35 @@
+{
+  "name": "solid-jobs-node",
+  "version": "0.1.0",
+  "description": "SolidJobs for Node.js: reliable Redis task runner on worker_threads, backed by the Ruby solid-redis gem through a sidecar.",
+  "license": "LGPL-3.0-or-later",
+  "main": "lib/index.js",
+  "bin": {
+    "solid-jobs-node": "bin/solid-jobs-node"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "Gemfile",
+    "LICENSE.txt",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nicolasva/solid-jobs-node.git"
+  },
+  "keywords": [
+    "jobs",
+    "queue",
+    "redis",
+    "worker_threads",
+    "solid-redis"
+  ]
+}
